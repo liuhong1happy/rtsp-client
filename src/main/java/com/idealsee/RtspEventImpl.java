@@ -7,7 +7,7 @@ public class RtspEventImpl implements RtspEvent {
     }
     @Override
     public void onConnectionFailedRtsp(String reason){
-        
+        System.out.println(reason);
     }
     @Override
     public void onDisconnectRtsp(){

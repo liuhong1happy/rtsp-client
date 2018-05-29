@@ -10,7 +10,7 @@ public class App
 {
     public static void main( String[] args )
     {
-        RtspClient rtspClient = new RtspClient("rtsp://10.0.0.242/test", new RtspEventImpl());
+        RtspClient rtspClient = new RtspClient("rtsp://10.0.0.242/test/null", new RtspEventImpl());
         rtspClient.Connect();
     }
 }

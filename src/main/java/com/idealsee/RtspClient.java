@@ -1,17 +1,16 @@
 package com.idealsee;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.net.Socket;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.IOException;
 
 public class RtspClient {
     public final String TAG = "RtspClient";
@@ -21,6 +20,8 @@ public class RtspClient {
     public String host;
     public Integer port;
     public String path;
+    public String user;
+    public String password;
     public String authorization = null;
     public int mCSeq = 0;
     public String sessionId;
@@ -33,6 +34,27 @@ public class RtspClient {
     private String defaultSPS = "Z0KAHtoHgUZA";
     private String defaultPPS = "aM4NiA==";
     private byte[] sps, pps;
+    private int sampleRate = 44100;
+    private boolean isStereo = true;
+    private static final int[] AUDIO_SAMPLING_RATES = {
+        96000, // 0
+        88200, // 1
+        64000, // 2
+        48000, // 3
+        44100, // 4
+        32000, // 5
+        24000, // 6
+        22050, // 7
+        16000, // 8
+        12000, // 9
+        11025, // 10
+        8000,  // 11
+        7350,  // 12
+        -1,   // 13
+        -1,   // 14
+        -1,   // 15
+    };
+  
     
     /** Socket通信相关 */
     public Socket socket;
@@ -84,7 +106,7 @@ public class RtspClient {
     /**
      * 链接RTSP服务器
      * 1. 发送OPTIONS请求
-     * 2. 发送DESCRIBE请求
+     * 2. 发送ANNOUNCE请求
      */
     public void Connect() {
         try {
@@ -100,10 +122,41 @@ public class RtspClient {
 
             // 3. 发送OPTIONS请求
             sendOptions();
-            // 4. 发送ANNOUNCE请求
-            sendAnnounce();
+            // 4. 发送DESCRIBE请求
+            sendDescribe();
+            // 5. 发送Setup请求
+            sendSetup(trackAudio, protocol, "play");
+            sendSetup(trackVideo, protocol, "play");
             
+            // 4. 发送ANNOUNCE请求
+            // RtspResponse announceResponse = sendAnnounce();
+            // switch (announceResponse.Status) {
+            //     case 403:
+            //         // 没有任何权限，被拒绝
+            //         rtspEvent.onConnectionFailedRtsp("Error configure stream, access denied");
+            //         break;
+            //     case 401:
+            //         if (user == null || password == null) {
+            //             rtspEvent.onAuthErrorRtsp();
+            //             return;
+            //         } else {
+            //             // 重新计算授权字符串
 
+            //         }
+            //         break;
+            //     case 200:
+            //         break;
+            //     default:
+            //         rtspEvent.onConnectionFailedRtsp("Error configure stream, announce failed");
+            //         break;
+            // }
+            // 5. 发送Setup请求
+            // if(announceResponse.Status == 200) {
+
+            // }
+
+            // 6. 发送Record请求
+            // sendRecord();
 
         } catch (IOException | NullPointerException e) {
             rtspEvent.onConnectionFailedRtsp(e.toString());
@@ -127,27 +180,107 @@ public class RtspClient {
         return new RtspResponse(reader);
     }
 
-    public void sendAnnounce() {
-        RtspRequest optionsRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "ANNOUNCE");
-         optionsRequest.Headers.put("CSeq",String.valueOf(++mCSeq));
-         optionsRequest.Headers.put("Content-Length",String.valueOf(0));
-         optionsRequest.Headers.put("Content-Type", "application/sdp");
+    /**
+     * 发送Announce请求
+     */
+    public RtspResponse sendAnnounce() {
+        RtspRequest announceRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "ANNOUNCE");
+         announceRequest.Headers.put("CSeq",String.valueOf(++mCSeq));
+         announceRequest.Headers.put("Content-Length",String.valueOf(0));
+         announceRequest.Headers.put("Content-Type", "application/sdp");
+        if(sessionId != null) {
+             announceRequest.Headers.put("Session",sessionId);
+        }
+        if(authorization != null) {
+             announceRequest.Headers.put("Authorization",authorization);
+        }
+        announceRequest.BodyMap.put("v", String.valueOf(0));
+        announceRequest.BodyMap.put("o", "- " + timestamp + " " + timestamp + " IN IP4 127.0.0.1");
+        announceRequest.BodyMap.put("s", "Unnamed");
+        announceRequest.BodyMap.put("i", "N/A");
+        announceRequest.BodyMap.put("c", "IN IP4 " + host);
+        announceRequest.BodyMap.put("t", "0 0");
+        announceRequest.BodyMap.put("a", "recvonly");
+
+        announceRequest.BodyMap.putAll(RtspClient.createAudioBody(trackAudio, sampleRate, isStereo));
+        announceRequest.BodyMap.putAll(RtspClient.createVideoBody(trackVideo, getSPS(), getPPS()));
+
+        announceRequest.sendByBufferedWriter(writer);
+
+        return new RtspResponse(reader);
+    }
+
+    /**
+     * 发送Describe请求
+     */
+    public RtspResponse sendDescribe() {
+        RtspRequest optionsRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "DESCRIBE");
+        optionsRequest.Headers.put("CSeq", String.valueOf(++mCSeq));
         if(sessionId != null) {
              optionsRequest.Headers.put("Session",sessionId);
         }
         if(authorization != null) {
              optionsRequest.Headers.put("Authorization",authorization);
         }
-        optionsRequest.BodyMap.put("v", String.valueOf(0));
-        optionsRequest.BodyMap.put("o", "-"+timestamp + " "+timestamp+" IN IP4 127.0.0.1");
-        optionsRequest.BodyMap.put("s", "Unnamed");
-        optionsRequest.BodyMap.put("i", "N/A");
-        optionsRequest.BodyMap.put("c", "IN IP4 "+host);
-        optionsRequest.BodyMap.put("t", "0 0");
-        optionsRequest.BodyMap.put("a", "recvonly");
-
         optionsRequest.sendByBufferedWriter(writer);
+        return new RtspResponse(reader);
     }
+
+    /**
+     * 发送Setup请求
+     */
+    public RtspResponse sendSetup(int track, Protocol protocol, String mode) {
+        String params = (protocol == Protocol.UDP) ? ("UDP;unicast;client_port=" + (5000 + 2 * track) + "-" + (5000 + 2 * track + 1) + ";mode="+mode)
+										: ("TCP;interleaved=" + 2 * track + "-" + (2 * track + 1) + ";mode="+mode);
+										
+				RtspRequest setupRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path+"/trackID="+track, "SETUP");
+				setupRequest.Headers.put("CSeq",String.valueOf(++mCSeq));
+        setupRequest.Headers.put("Transport", "RTP/AVP/"+params);
+        if(sessionId != null) {
+            setupRequest.Headers.put("Session",sessionId);
+       }
+       if(authorization != null) {
+            setupRequest.Headers.put("Authorization",authorization);
+       }
+       setupRequest.sendByBufferedWriter(writer);
+       return new RtspResponse(reader);
+    }
+
+    /**
+     * 发送Record请求
+     */
+    public RtspResponse sendRecord() {
+			RtspRequest recordRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "RECORD");
+			recordRequest.Headers.put("CSeq",String.valueOf(++mCSeq));
+			recordRequest.Headers.put("Range", "npt=0.000-");
+
+			if(sessionId != null) {
+					recordRequest.Headers.put("Session",sessionId);
+			}
+			if(authorization != null) {
+					recordRequest.Headers.put("Authorization",authorization);
+			}
+			recordRequest.sendByBufferedWriter(writer);
+			return new RtspResponse(reader);
+    }
+
+    /**
+     * 发送Teardown请求
+     */
+    public RtspResponse sendTeardown() {
+        RtspRequest teardownRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "TEARDOWN");
+        teardownRequest.Headers.put("CSeq",String.valueOf(++mCSeq));
+
+        if(sessionId != null) {
+                teardownRequest.Headers.put("Session",sessionId);
+        }
+        if(authorization != null) {
+                teardownRequest.Headers.put("Authorization",authorization);
+        }
+        teardownRequest.sendByBufferedWriter(writer);
+        return new RtspResponse(reader);
+}
+
 
     public String getSPS() {
         String sSPS;
@@ -167,5 +300,33 @@ public class RtspClient {
             sPPS = defaultPPS;
         }
         return sPPS;
+    }
+
+    public static RtspBodyMap<String, String> createAudioBody(int trackAudio, int sampleRate, boolean isStereo) {
+        RtspBodyMap<String, String> bodyMap = new RtspBodyMap<String, String>();
+        int sampleRateNum = -1;
+        for (int i = 0; i < AUDIO_SAMPLING_RATES.length; i++) {
+          if (AUDIO_SAMPLING_RATES[i] == sampleRate) {
+            sampleRateNum = i;
+            break;
+          }
+        }
+        int channel = (isStereo) ? 2 : 1;
+        int config = (2 & 0x1F) << 11 | (sampleRateNum & 0x0F) << 7 | (channel & 0x0F) << 3;
+
+        bodyMap.put("m", "audio "+ (5000 + 2 * trackAudio)+" RTP/AVP "+ RtpConstants.payloadType);
+        bodyMap.put("a", "rtpmap:"+RtpConstants.payloadType+ " mpeg4-generic/"+sampleRate+"/"+channel);
+        bodyMap.put("a", "fmtp:"+RtpConstants.payloadType + " streamtype=5; profile-level-id=15; mode=AAC-hbr; config=" + Integer.toHexString(config) + "; SizeLength=13; IndexLength=3; IndexDeltaLength=3;");
+        bodyMap.put("a", "control:trackID=" + trackAudio);
+        return bodyMap;
+    }
+    
+    public static RtspBodyMap<String, String> createVideoBody(int trackVideo, String sps, String pps) {
+        RtspBodyMap<String, String> bodyMap = new RtspBodyMap<String, String>();
+        bodyMap.put("m", "video "+ (5000 + 2 * trackVideo)+" RTP/AVP "+RtpConstants.payloadType);
+        bodyMap.put("a", "rtpmap:"+ RtpConstants.payloadType+" H264/"+RtpConstants.clockVideoFrequency);
+        bodyMap.put("a", "fmtp:"+ RtpConstants.payloadType + " packetization-mode=1;sprop-parameter-sets="+sps+","+pps+";");
+        bodyMap.put("a", "control:trackID="+trackVideo);
+        return bodyMap;
     }
 }
