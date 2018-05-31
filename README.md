@@ -1,0 +1,1 @@
+ffmpeg -re -stream_loop -1 -i D://wu.mp4 -vcodec libx264 -acodec copy -f rtsp rtsp://127.0.0.1/h264/test

@@ -1,4 +1,4 @@
-package com.idealsee;
+package com.idealsee.rtsp;
 
 public class RtpConstants {
     public static final long clockVideoFrequency = 90000L;

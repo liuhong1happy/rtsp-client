@@ -1,4 +1,4 @@
-package com.idealsee;
+package com.idealsee.rtsp;
 
 import java.util.ArrayList;
 
