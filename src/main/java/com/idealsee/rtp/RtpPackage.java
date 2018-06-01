@@ -24,7 +24,7 @@ public class RtpPackage{
     public byte[] header;
 
     //size of the RTP payload
-    public int payload_size;
+    public int payloadSize;
     //Bitstream of the RTP payload
     public byte[] payload;
     
@@ -61,16 +61,15 @@ public class RtpPackage{
         header[9] = (byte)(Ssrc >> 16);
         header[10] = (byte)(Ssrc >> 8);
         header[11] = (byte)(Ssrc & 0xFF);
-
         //fill the payload bitstream:
-        payload_size = data_length;
+        payloadSize = data_length;
         payload = new byte[data_length];
 
         //fill payload array of byte from data (given in parameter of the constructor)
-        payload = Arrays.copyOf(data, payload_size);
+        payload = Arrays.copyOf(data, payloadSize);
     }
-      
-    //--------------------------
+
+	//--------------------------
     //Constructor of an RTPpacket object from the packet bistream 
     //--------------------------
     public RtpPackage(byte[] packet, int packet_size)
@@ -92,16 +91,21 @@ public class RtpPackage{
                 header[i] = packet[i];
 
             //get the payload bitstream:
-            payload_size = packet_size - HEADER_SIZE;
-            payload = new byte[payload_size];
+            payloadSize = packet_size - HEADER_SIZE;
+            payload = new byte[payloadSize];
             for (int i=HEADER_SIZE; i < packet_size; i++)
                 payload[i-HEADER_SIZE] = packet[i];
 
             //interpret the changing fields of the header:
             Version = (header[0] & 0xFF) >>> 6;
+            Padding = (header[0] & 0x3F) >>> 5;
+            Extension = (header[0] & 0x1F) >>> 4;
+            CsrcCount = header[0] & 0x0F;
+            Marker = (header[1] & 0xFF) >>> 7;
             PayloadType = header[1] & 0x7F;
             SequenceNumber = (header[3] & 0xFF) + ((header[2] & 0xFF) << 8);
             TimeStamp = (header[7] & 0xFF) + ((header[6] & 0xFF) << 8) + ((header[5] & 0xFF) << 16) + ((header[4] & 0xFF) << 24);
+            Ssrc = (header[11] & 0xFF) + ((header[10] & 0xFF) << 8) + ((header[9] & 0xFF) << 16) + ((header[8] & 0xFF) << 24);
         }
     }
 
@@ -110,24 +114,24 @@ public class RtpPackage{
     //--------------------------
     public int getPayload(byte[] data) {
 
-        for (int i=0; i < payload_size; i++)
+        for (int i=0; i < payloadSize; i++)
             data[i] = payload[i];
 
-        return(payload_size);
+        return(payloadSize);
     }
 
     //--------------------------
     //getpayload_length: return the length of the payload
     //--------------------------
     public int getPayloadLength() {
-        return(payload_size);
+        return(payloadSize);
     }
 
     //--------------------------
     //getlength: return the total length of the RTP packet
     //--------------------------
     public int getLength() {
-        return(payload_size + HEADER_SIZE);
+        return(payloadSize + HEADER_SIZE);
     }
 
     //--------------------------
@@ -138,11 +142,11 @@ public class RtpPackage{
         //construct the packet = header + payload
         for (int i=0; i < HEADER_SIZE; i++)
             packet[i] = header[i];
-        for (int i=0; i < payload_size; i++)
+        for (int i=0; i < payloadSize; i++)
             packet[i+HEADER_SIZE] = payload[i];
 
         //return total size of the packet
-        return(payload_size + HEADER_SIZE);
+        return(payloadSize + HEADER_SIZE);
     }
 
     //--------------------------
@@ -180,6 +184,7 @@ public class RtpPackage{
                            + ", Marker: " + Marker 
                            + ", PayloadType: " + PayloadType
                            + ", SequenceNumber: " + SequenceNumber
-                           + ", TimeStamp: " + TimeStamp);
+                           + ", TimeStamp: " + TimeStamp
+                           + ", SSRC: " + Ssrc);
     }
 }

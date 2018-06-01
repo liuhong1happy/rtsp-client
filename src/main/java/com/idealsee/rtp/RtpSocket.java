@@ -31,6 +31,12 @@ public class RtpSocket implements Runnable {
                 RtpPackage rtpPackage = new RtpPackage(recePacket.getData(), recePacket.getLength());
                 
                 rtpPackage.printHeader();
+                if(rtpPackage.PayloadType == 96) {
+                    // 解析H264包
+                    H264Package h264Package = new H264Package(rtpPackage.payload, rtpPackage.payloadSize);
+
+                    h264Package.printHeader();
+                }
 
             } catch (IOException e) {
                 e.printStackTrace();
