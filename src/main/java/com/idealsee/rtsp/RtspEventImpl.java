@@ -21,4 +21,8 @@ public class RtspEventImpl implements RtspEvent {
     public void onAuthSuccessRtsp(){
         
     }
+	@Override
+	public void onReceiveNALUPackage(byte[] nalu, int naluSize) {
+		
+	}
 }

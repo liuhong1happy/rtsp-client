@@ -11,5 +11,7 @@ public interface RtspEvent {
   void onAuthErrorRtsp();
 
   void onAuthSuccessRtsp();
+
+  void onReceiveNALUPackage(byte[] nalu, int naluSize);
   
 }

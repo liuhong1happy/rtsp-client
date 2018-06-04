@@ -1,7 +1,6 @@
 package com.idealsee;
 
 import com.idealsee.rtsp.RtspClient;
-import com.idealsee.rtsp.RtspEventImpl;
 
 //rtsp://127.0.0.1:5050/ok
 
@@ -9,11 +8,12 @@ import com.idealsee.rtsp.RtspEventImpl;
  * Hello world!
  *
  */
-public class App 
+public class App
 {
+    public static RtspClient rtspClient;
     public static void main( String[] args )
     {
-        RtspClient rtspClient = new RtspClient("rtsp://10.0.0.242/h264/test", new RtspEventImpl());
+        rtspClient = new RtspClient("rtsp://10.0.0.242/h264/test", new ApplicationRtspEvent());
         rtspClient.Connect();
     }
 }

@@ -8,13 +8,19 @@ import java.io.OutputStreamWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.idealsee.rtp.H264Package;
+import com.idealsee.rtp.RtpEvent;
+import com.idealsee.rtp.RtpPackage;
 import com.idealsee.rtp.RtpSocket;
 
-public class RtspClient {
+public class RtspClient implements RtpEvent {
     public final String TAG = "RtspClient";
     public RtspEvent rtspEvent;
     /** RTSP协议相关 */
@@ -66,9 +72,15 @@ public class RtspClient {
     public BufferedWriter writer;
     public RtpSocket aacRtpSocket;
     public RtpSocket h264RtpSocket;
+    public RtspStatus status = RtspStatus.Init;
 
     private static final Pattern rtspUrlPattern = Pattern.compile("^rtsp://([^/:]+)(:(\\d+))*/([^/]+)(/(.*))*$");
     private static final Pattern rtspsUrlPattern = Pattern.compile("^rtsps://([^/:]+)(:(\\d+))*/([^/]+)(/(.*))*$");
+    /**
+     * 接受包缓存与转换
+     */
+    public HashMap<Integer, ArrayList<H264Package>> h264PackageCache;
+    public final byte[] StartCode = { 0, 0, 0 , 1 };
 
     public RtspClient(String url, RtspEvent rtspEvent) {
         this.rtspEvent = rtspEvent;
@@ -76,6 +88,7 @@ public class RtspClient {
         this.setUrl(url);
         long uptime = System.currentTimeMillis();
         timestamp = (uptime / 1000) << 32 & (((uptime - ((uptime / 1000) * 1000)) >> 32)/ 1000);
+        this.h264PackageCache = new HashMap<Integer, ArrayList<H264Package>>();
     }
 
     public RtspClient(String url, String authorization, RtspEvent rtspEvent) {
@@ -121,10 +134,9 @@ public class RtspClient {
             socket = new Socket();
             socket.connect(socketAddress, 3000);
             socket.setSoTimeout(3000);
-            aacRtpSocket = new RtpSocket(startPort);
-            h264RtpSocket = new RtpSocket(startPort + 2);
+            aacRtpSocket = new RtpSocket(startPort, this);
+            h264RtpSocket = new RtpSocket(startPort + 2, this);
             
-
             // 2. 获取读取流
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
@@ -135,15 +147,37 @@ public class RtspClient {
             // 5. 发送Setup请求
             sendSetup(trackAudio, protocol, "play");
             sendSetup(trackVideo, protocol, "play");
-            RtspResponse response = sendPlay();
-            if(response.Status == 200) {
-                h264RtpSocket.start();
-                aacRtpSocket.start();
-            }
+
+            status = RtspStatus.Ready;
+            rtspEvent.onConnectionSuccessRtsp();
             // sendPause();
             // sendTeardown();
         } catch (IOException | NullPointerException e) {
             rtspEvent.onConnectionFailedRtsp(e.toString());
+        }
+    }
+
+    public boolean isReady() {
+        return status == RtspStatus.Ready;
+    }
+
+    public void Play() {
+        RtspResponse response = sendPlay();
+        if(response.Status == 200) {
+            h264RtpSocket.start();
+            aacRtpSocket.start();
+
+            status = RtspStatus.Playing;
+        }
+    }
+
+
+    public void Pause() {
+        RtspResponse response = sendPause();
+        if(response.Status == 200) {
+            h264RtpSocket.close();
+            aacRtpSocket.close();
+            status = RtspStatus.Ready;
         }
     }
 
@@ -346,4 +380,102 @@ public class RtspClient {
         bodyMap.put("a", "control:"+trackID+"="+trackVideo);
         return bodyMap;
     }
+
+	@Override
+	public void onConnectionSuccessRtp() {
+		
+	}
+
+	@Override
+	public void onConnectionFailedRtp(String reason) {
+		
+	}
+
+	@Override
+	public void onDisconnectRtp() {
+		
+	}
+
+	@Override
+	public void onReceiveFailRtp(String reason) {
+		
+	}
+
+	@Override
+	public void onReceiveSuccessRtp(RtpPackage rtpPackage) {
+		
+	}
+
+	@Override
+	public void onReceiveH264PackageSuccess(RtpPackage rtpPackage, H264Package h264Package) {
+		/**
+         * 缓存H264包
+         */
+        if(!h264PackageCache.containsKey(rtpPackage.Ssrc)) {
+            h264PackageCache.put(rtpPackage.Ssrc, new ArrayList<H264Package>());
+        }
+
+        if(h264Package.isFU) {
+            ArrayList<H264Package> array = h264PackageCache.get(rtpPackage.Ssrc);
+            if(h264Package.FU.Start == 1) {
+                array.clear();
+                array.add(h264Package);
+            } else if(h264Package.FU.End == 1) {
+                array.add(h264Package);
+                /** 检测排序 */
+                H264Package startPackage = array.get(0);
+                H264Package endPackage = array.get(array.size() -1);
+                if((endPackage.SequenceNumber - startPackage.SequenceNumber + 1) == array.size()) {
+                    /**
+                     * 开始组包
+                     */
+                    array.sort(new Comparator<H264Package>() {
+                        @Override
+                        public int compare(H264Package o1, H264Package o2) {
+                            if(o1.SequenceNumber > o2.SequenceNumber) {
+                                return 1;
+                            } else {
+                                return -1;
+                            }
+                        }
+                    });
+                    byte[] NALU = new byte[1024*array.size()];
+                    int index = 0;
+                    for(int i=0;i<array.size();i++) {
+                        H264Package p = array.get(i);
+                        if(i==0) {
+                            System.arraycopy(StartCode, 0, NALU, index, 4);
+                            index += 4;
+                            System.out.println(Integer.toHexString(p.Payload[0]));
+                        }
+                        System.arraycopy(p.Payload, 0, NALU, index, p.Payload.length);
+                        index += p.Payload.length;
+                    }
+                    
+                    System.out.println("NALU.payloadSize:"+ array.size());
+                    System.out.println("NALU.length:"+ index);
+                    System.out.println("NALU.bufferSize:"+ NALU.length);
+
+                    rtspEvent.onReceiveNALUPackage(NALU, index);
+                }
+            } else {
+                array.add(h264Package);
+            }
+        }
+	}
+
+	@Override
+	public void onStartFailRtp(String reason) {
+		
+	}
+
+	@Override
+	public void onStartSuccessRtp() {
+		
+	}
+
+	@Override
+	public void onCloseSuccessRtp() {
+		
+	}
 }

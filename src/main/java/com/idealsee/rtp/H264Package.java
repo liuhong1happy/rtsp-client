@@ -2,6 +2,9 @@ package com.idealsee.rtp;
 
 
 public class H264Package {
+    /**
+     * H264 RTP包内容
+     */
     public int HEADER_SIZE = 1;
     public byte[] Header;
     public int ForbiddenZeroBit;
@@ -12,6 +15,10 @@ public class H264Package {
     public boolean isFU = false;
     public FragmentationUnit FU;
     /**
+     * Rtp包数据序号
+     */
+    public int SequenceNumber;
+    /**
      * 24    STAP-A   单一时间的组合包
      * 25    STAP-B   单一时间的组合包
      * 26    MTAP16   多个时间的组合包
@@ -19,7 +26,7 @@ public class H264Package {
      * 28    FU-A     分片的单元
      * 29    FU-B     分片的单元
      */
-    public H264Package(byte[] payload, int packet_size) {
+    public H264Package(byte[] payload, int packet_size, int SequenceNumber) {
         Header = new byte[1];
         Header[0] = payload[0];
 
@@ -38,6 +45,8 @@ public class H264Package {
         PayloadSize = packet_size - HEADER_SIZE;
         Payload = new byte[PayloadSize];
         for (int i=HEADER_SIZE; i < packet_size; i++) Payload[i-HEADER_SIZE] = payload[i];
+
+        this.SequenceNumber = SequenceNumber;
     }
 
 
