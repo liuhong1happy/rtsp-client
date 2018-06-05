@@ -6,3 +6,9 @@
 .settings/org.eclipse.jdt.apt.core.prefs
 .settings/org.eclipse.m2e.core.prefs
 target/
+.gradle/
+*.zip
+build/
+.idea/
+.vscode/
+.settings/
