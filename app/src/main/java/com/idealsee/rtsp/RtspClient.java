@@ -43,11 +43,13 @@ public class RtspClient implements RtpEvent {
     private Protocol protocol = Protocol.UDP;
     private String defaultSPS = "Z0KAHtoHgUZA";
     private String defaultPPS = "aM4NiA==";
-    private byte[] sps, pps;
+    public byte[] sps, pps;
     private int sampleRate = 44100;
     private boolean isStereo = true;
     private Integer startPort = 15000;
     public String trackID = "streamid";
+    public Integer picWidth = 1920;
+    public Integer picHeight = 1080;
     private static final int[] AUDIO_SAMPLING_RATES = {
         96000, // 0
         88200, // 1
@@ -138,9 +140,9 @@ public class RtspClient implements RtpEvent {
     }
 
     /**
-     * 链接RTSP服务�?
-     * 1. 发�?�OPTIONS请求
-     * 2. 发�?�ANNOUNCE请求
+     * 链接RTSP服务器
+     * 1. 发送OPTIONS请求
+     * 2. 发送ANNOUNCE请求
      */
     public void Connect() {
         try {
@@ -152,12 +154,12 @@ public class RtspClient implements RtpEvent {
             aacRtpSocket = new RtpSocket(startPort, this);
             h264RtpSocket = new RtpSocket(startPort + 2, this);
             
-            // 2. 获取读取�?
+            // 2. 获取读取流
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-            // 3. 发�?�OPTIONS请求
+            // 3. 发送OPTIONS请求
             sendOptions();
-            // 4. 发�?�DESCRIBE请求
+            // 4. 发送DESCRIBE请求
             RtspResponse responseDescribe = sendDescribe();
             if(responseDescribe.Status == 401) {
                 // 重新授权登录
@@ -167,10 +169,14 @@ public class RtspClient implements RtpEvent {
                 responseDescribe = sendDescribe();
                 if(responseDescribe.Status != 200) {
                     return;
+                } else {
+                    sps = Base64.decode(responseDescribe.Sdp.SPS, Base64.NO_WRAP);
+                    pps = Base64.decode(responseDescribe.Sdp.PPS, Base64.NO_WRAP);
+                    decodeSPS();
                 }
             }
 
-            // 5. 发�?�Setup请求
+            // 5. 发送Setup请求
             if(responseDescribe.Sdp.videoTrackFlag) {
                 RtspResponse responseSetup1 = sendSetup(responseDescribe.Sdp.videoTrack, responseDescribe.Sdp.videoTrackValue, protocol, "play");
             }
@@ -214,7 +220,7 @@ public class RtspClient implements RtpEvent {
     }
 
     /**
-     * 发�?�Options请求
+     * 发送Options请求
      */
     public RtspResponse sendOptions() {
         RtspRequest optionsRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "OPTIONS");
@@ -231,7 +237,7 @@ public class RtspClient implements RtpEvent {
     }
 
     /**
-     * 发�?�Announce请求
+     * 发送Announce请求
      */
     public RtspResponse sendAnnounce() {
         RtspRequest announceRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "ANNOUNCE");
@@ -261,11 +267,11 @@ public class RtspClient implements RtpEvent {
     }
 
     /**
-     * 发�?�Describe请求
-     ***************************************response区域的计算规则如�?***********************************
-        (1)当password为MD5编码,�?
+     * 发送Describe请求
+     ***************************************response区域的计算规则如下***********************************
+        (1)当password为MD5编码,则
         response = md5(<password>:<nonce>:md5(<cmd>:<url>));
-        (2)当password为ANSI字符�?,�?
+        (2)当password为ANSI字符串,则
         response = md5(md5(<username>:<realm>:<password>):<nonce>:md5(<cmd>:<uri>));
      ***********************************************************************************************************
      */
@@ -283,7 +289,7 @@ public class RtspClient implements RtpEvent {
     }
 
     /**
-     * 发�?�Setup请求
+     * 发送Setup请求
      */
     public RtspResponse sendSetup(String track, int trackType, Protocol protocol, String mode) {
         String params = (protocol == Protocol.UDP) ? ("UDP;unicast;client_port=" + (startPort + 2 * trackType) + "-" + (startPort + 2 * trackType + 1) + ";mode="+mode)
@@ -303,7 +309,7 @@ public class RtspClient implements RtpEvent {
     }
 
     /**
-     * 发�?�Record请求
+     * 发送Record请求
      */
     public RtspResponse sendRecord() {
 			RtspRequest recordRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "RECORD");
@@ -321,7 +327,7 @@ public class RtspClient implements RtpEvent {
     }
 
     /**
-     * 发�?�Teardown请求
+     * 发送Teardown请求
      */
     public RtspResponse sendTeardown() {
         RtspRequest teardownRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "TEARDOWN");
@@ -337,7 +343,7 @@ public class RtspClient implements RtpEvent {
         return new RtspResponse(reader);
     }
     /**
-     * 发�?�Play请求
+     * 发送Play请求
      */
     public RtspResponse sendPlay() {
         RtspRequest playRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "PLAY");
@@ -353,7 +359,7 @@ public class RtspClient implements RtpEvent {
         return new RtspResponse(reader);
     }
     /**
-     * 发�?�Pause请求
+     * 发送Pause请求
      */
     public RtspResponse sendPause() {
         RtspRequest pauseRequest = new RtspRequest("rtsp://" + host +":"+ port + "" + path, "PAUSE");
@@ -447,6 +453,130 @@ public class RtspClient implements RtpEvent {
         }
     }
 
+
+    /* This method is used to decode pic width and height from the sps info,
+     * which got from the RTSP DESCRIPE request, SDP info.
+     */
+    private void decodeSPS(){
+
+        int i,offset = 32;
+        int pic_width_len,pic_height_len;
+        int profile_idc = sps[1];
+        byte[] header_pps = new byte[pps.length];
+        byte[] header_sps = new byte[sps.length];
+
+        System.arraycopy(sps, 0, header_sps, 0, sps.length);
+        System.arraycopy(pps,0,header_pps,0,pps.length);
+        offset += getUeLen(sps,offset);//jump seq_parameter_set_id;
+
+        if(profile_idc == 100 || profile_idc == 110 || profile_idc == 122
+                || profile_idc == 144) {
+            int chroma_format_idc = (getUeLen(sps,offset) == 1)?0:
+                    ( sps[(offset+getUeLen(sps,offset))/8] >>
+                            (7-((offset+getUeLen(sps,offset))%8)) );
+            offset += getUeLen(sps,offset);//jump chroma_format_idc
+            if(chroma_format_idc == 3)
+                offset++; //jump residual_colour_transform_flag
+            offset += getUeLen(sps,offset);//jump bit_depth_luma_minus8
+            offset += getUeLen(sps,offset);//jump bit_depth_chroma_minus8
+            offset ++; //jump qpprime_y_zero_transform_bypass_flag
+            int seq_scaling_matrix_present_flag = (sps[offset/8] >> (8-(offset%8)))&0x01;
+            if(seq_scaling_matrix_present_flag == 1) offset += 8; //jump seq_scaling_list_present_flag
+        }
+        offset += getUeLen(sps,offset);//jump log2_max_frame_num_minus4
+        int pic_order_cnt_type = (getUeLen(sps,offset) == 1)?0:
+                ( sps[(offset+getUeLen(sps,offset))/8] >>
+                        (7-((offset+getUeLen(sps,offset))%8)) );
+        offset += getUeLen(sps,offset);
+        if(pic_order_cnt_type == 0) {
+            offset += getUeLen(sps,offset);
+        }
+        else if(pic_order_cnt_type == 1) {
+            offset++; //jump delta_pic_order_always_zero_flag
+            offset += getUeLen(sps,offset); //jump offset_for_non_ref_pic
+            offset += getUeLen(sps,offset); //jump offset_for_top_to_bottom_field
+            int num_ref_frames_inpic_order_cnt_cycle = ( sps[(offset+getUeLen(sps,offset))/8] >>
+                    (7-((offset+getUeLen(sps,offset))%8)) );
+            for(i=0; i<num_ref_frames_inpic_order_cnt_cycle; ++i)
+                offset += getUeLen(sps,offset); //jump ref_frames_inpic_order
+        }
+        offset += getUeLen(sps,offset); // jump num_ref_frames
+        offset++; // jump gaps_in_fram_num_value_allowed_flag
+
+        pic_width_len = getUeLen(sps,offset);
+
+        picWidth = (getByteBit1(sps, offset + pic_width_len / 2 + 1, pic_width_len / 2)+1)*16;
+        offset += pic_width_len;
+        pic_height_len = getUeLen(sps,offset);
+
+        picHeight = (getByteBit1(sps, offset + pic_height_len / 2 + 1, pic_height_len / 2)+1)*16;
+
+    }
+
+    private int getUeLen(byte[] bytes, int offset) {
+        int zcount = 0;
+        while(true) {
+            if(( ( bytes[offset/8] >> (7-(offset%8)) ) & 0x01 ) == 0) {
+                offset ++;
+                zcount ++;
+            }
+            else break;
+        }
+        return zcount * 2 + 1;
+    }
+
+    /*
+     * This method is get the bit[] from a byte[]
+     * It may have a more efficient way
+     */
+    public int getByteBit(byte[] bytes, int offset, int len){
+        int tmplen = len/8+ ((len%8+offset%8)>8?1:0) + ((offset%8 == 0)?0:1);
+        int lastByteZeroNum = ((len%8+offset%8-8)>0)?(16-len%8-offset%8):(8-len%8-offset%8);
+        int data = 0;
+        byte tmpC = (byte) (0xFF >> (8 - lastByteZeroNum));
+        byte[] tmpB = new byte[tmplen];
+        byte[] tmpA = new byte[tmplen];
+        int i;
+        for(i = 0;i<tmplen;++i) {
+            if(i == 0) tmpB[i] = (byte) (bytes[offset/8] << (offset%8) >> (offset%8));
+            else if(i+1 == tmplen) tmpB[i] = (byte) ((bytes[offset/8+i] & 0xFF) >> lastByteZeroNum);
+            else tmpB[i] = bytes[offset/8+i];
+            tmpA[i] = (byte) ((tmpB[i] & tmpC)<<(8-lastByteZeroNum));
+            if(i+1 != tmplen && i != 0) {
+                tmpB[i] = (byte) ((tmpB[i]&0xFF) >> lastByteZeroNum);
+                tmpB[i] = (byte) (tmpB[i] | tmpA[i-1]);
+            }
+            else if(i == 0) tmpB[0] = (byte) ((tmpB[0]&0xFF) >> lastByteZeroNum);
+            else tmpB[i] = (byte) (tmpB[i] | tmpA[i-1]);
+            data = ((tmpB[i]&0xFF) << ((tmplen-i-1)*8)) | data ;
+        }
+        return data-1;
+    }
+    // 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8 1 2 3 4 5 6 7 8 1 2 3 4 5 6 7 8
+    public int getByteBit1(byte[] bytes, int offset, int len){
+        int tmplen = offset%8==0?(len+7)/8:(len/8+ ((len%8+offset%8)>8?1:0)+1);
+        int lastByteZeroNum = ((len%8+offset%8-8)>0)?(16-len%8-offset%8):(8-len%8-offset%8);
+        int data = 0;
+        byte tmpC = (byte) (0xFF >> (8 - lastByteZeroNum));
+        byte[] tmpB = new byte[tmplen];
+        byte[] tmpA = new byte[tmplen];
+        int i;
+        for(i = 0;i<tmplen;++i) {
+            if(i == 0) tmpB[i] = (byte) (((bytes[offset/8] << (offset%8))&0xff) >> (offset%8));
+            else if(i+1 == tmplen) tmpB[i] = (byte) ((bytes[offset/8+i] & 0xFF) >> lastByteZeroNum <<lastByteZeroNum);
+            else tmpB[i] = bytes[offset/8+i];
+            data = ((tmpB[i]&0xFF) << ((tmplen-i-1)*8)) | data ;
+
+        }
+        data = data>>lastByteZeroNum;
+        data += 1<<len;
+
+        return data-1;
+    }
+    public int[] getPicInfo(){
+        return new int[]{picWidth, picHeight};
+    }
+
 	@Override
 	public void onConnectionSuccessRtp() {
 		
@@ -475,7 +605,7 @@ public class RtspClient implements RtpEvent {
 	@Override
 	public void onReceiveH264PackageSuccess(RtpPackage rtpPackage, H264Package h264Package) {
 		/**
-         * 缓存H264�?
+         * 缓存H264包
          */
         if(!h264PackageCache.containsKey(rtpPackage.Ssrc)) {
             h264PackageCache.put(rtpPackage.Ssrc, new ArrayList<H264Package>());
@@ -488,12 +618,12 @@ public class RtspClient implements RtpEvent {
                 array.add(h264Package);
             } else if(h264Package.FU.End == 1) {
                 array.add(h264Package);
-                /** �?测排�? */
+                /** 检测排序 */
                 H264Package startPackage = array.get(0);
                 H264Package endPackage = array.get(array.size() -1);
                 if((endPackage.SequenceNumber - startPackage.SequenceNumber + 1) == array.size()) {
                     /**
-                     * �?始组�?
+                     * 开始组包
                      */
                     array.sort(new Comparator<H264Package>() {
                         @Override
@@ -522,7 +652,10 @@ public class RtspClient implements RtpEvent {
                     
                     System.out.println("NALU.payloadSize:"+ array.size());
                     System.out.println("NALU.length:"+ index);
-                    rtspEvent.onReceiveNALUPackage(NALU, index);
+                    byte[] newNALU = new byte[index];
+
+                    System.arraycopy(NALU, 0,newNALU, 0, index);
+                    rtspEvent.onReceiveNALUPackage(newNALU, index, rtpPackage.getTimestamp());
                 }
             } else {
                 array.add(h264Package);

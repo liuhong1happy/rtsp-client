@@ -12,6 +12,6 @@ public interface RtspEvent {
 
   void onAuthSuccessRtsp();
 
-  void onReceiveNALUPackage(byte[] nalu, int naluSize);
+  void onReceiveNALUPackage(byte[] nalu, int naluSize, int timestamp);
   
 }

@@ -22,7 +22,7 @@ public class RtspEventImpl implements RtspEvent {
         
     }
 	@Override
-	public void onReceiveNALUPackage(byte[] nalu, int naluSize) {
+	public void onReceiveNALUPackage(byte[] nalu, int naluSize, int timestamp) {
 		
 	}
 }

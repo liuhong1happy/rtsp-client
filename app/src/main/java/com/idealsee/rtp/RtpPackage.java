@@ -6,7 +6,7 @@ import java.util.*;
 
 public class RtpPackage{
 
-    //不扩�?
+    //不扩招
     static int HEADER_SIZE = 12;
 
     //Fields that compose the RTP header

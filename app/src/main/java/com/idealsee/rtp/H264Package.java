@@ -3,7 +3,7 @@ package com.idealsee.rtp;
 
 public class H264Package {
     /**
-     * H264 RTP包内�?
+     * H264 RTP包内容
      */
     public int HEADER_SIZE = 1;
     public byte Header;
@@ -15,7 +15,7 @@ public class H264Package {
     public boolean isFU = false;
     public FragmentationUnit FU;
     /**
-     * Rtp包数据序�?
+     * Rtp包数据序号
      */
     public int SequenceNumber;
     /**
@@ -23,8 +23,8 @@ public class H264Package {
      * 25    STAP-B   单一时间的组合包
      * 26    MTAP16   多个时间的组合包
      * 27    MTAP24   多个时间的组合包
-     * 28    FU-A     分片的单�?
-     * 29    FU-B     分片的单�?
+     * 28    FU-A     分片的单元
+     * 29    FU-B     分片的单元
      */
     public H264Package(byte[] payload, int packet_size, int SequenceNumber) {
         Header = payload[0];

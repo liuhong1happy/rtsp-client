@@ -28,7 +28,7 @@ public class RtspResponse {
     public static final Pattern regexSDPgetTrack = Pattern.compile("control:(\\S+)",Pattern.CASE_INSENSITIVE);
     public static final Pattern regexSDPgetTrackValue = Pattern.compile("=(\\d+)",Pattern.CASE_INSENSITIVE);
     public static final Pattern regexSDPpacketizationMode = Pattern.compile("packetization-mode=(\\d);",Pattern.CASE_INSENSITIVE);
-    public static final Pattern regexSDPspspps = Pattern.compile("sprop-parameter-sets=(\\S+),(\\S+)\\;(\\S+)",Pattern.CASE_INSENSITIVE);
+    public static final Pattern regexSDPspspps = Pattern.compile("sprop-parameter-sets=(\\S+),(\\S+)",Pattern.CASE_INSENSITIVE);
 
     public class SDPInfo {
         public boolean audioTrackFlag;

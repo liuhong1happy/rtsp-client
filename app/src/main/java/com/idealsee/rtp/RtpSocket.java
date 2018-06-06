@@ -30,14 +30,14 @@ public class RtpSocket implements Runnable {
 	public void run() {
         while (true) {
             try {
-                // 接受UDP包数�?
+                // 接受UDP包数据
                 datagramSocket.receive(recePacket);
-                // 获取UDP的数�?
+                // 获取UDP的数据
                 RtpPackage rtpPackage = new RtpPackage(recePacket.getData(), recePacket.getLength());
                 
                 rtpPackage.printHeader();
                 if(rtpPackage.PayloadType == 96) {
-                    // 解析H264�?
+                    // 解析H264包
                     H264Package h264Package = new H264Package(rtpPackage.payload, rtpPackage.payloadSize, rtpPackage.SequenceNumber);
                     h264Package.printHeader();
 
