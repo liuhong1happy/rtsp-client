@@ -82,9 +82,15 @@ public class MainActivity extends AppCompatActivity {
                                     if (inputBufferIndex >= 0) {
                                         ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
                                         inputBuffer.clear();
+//                                        if (pBuf.length > buffer.remaining()) {
+//                                            mCodec.queueInputBuffer(index, 0, 0, frameInfo.stamp, 0);
+//                                        } else {
+//                                            buffer.put(nalu, frameInfo.offset, frameInfo.length);
+//                                            mCodec.queueInputBuffer(index, 0, buffer.position(), frameInfo.stamp + differ, 0);
+//                                        }
                                         inputBuffer.put(nalu, 0, nalu.length);
-                                        mMeidaCodec.queueInputBuffer(inputBufferIndex, 0, nalu.length, 1000000 * mCount / 20, 0);
-                                        outputBufferIndex = mMeidaCodec.dequeueOutputBuffer(info, -1);
+                                        mMeidaCodec.queueInputBuffer(inputBufferIndex, 0, nalu.length, 1000000 * mCount / 20, MediaCodec.BUFFER_FLAG_CODEC_CONFIG);
+                                        outputBufferIndex = mMeidaCodec.dequeueOutputBuffer(info, 10000);
                                         switch (outputBufferIndex) {
                                             case MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED:
                                                 Log.d("myapp", "INFO_OUTPUT_BUFFERS_CHANGED");
@@ -181,7 +187,7 @@ public class MainActivity extends AppCompatActivity {
             mThreadPool.execute(new Runnable() {
                                     @Override
                                     public void run() {
-                                        rtspClient = new RtspClient("rtsp://192.168.0.100:554/h264/ch1/main/av_stream", "admin", "abcd1234", rtspEvent);
+                                        rtspClient = new RtspClient("rtsp://192.168.0.100:554/h264/ch1/sub/av_stream", "admin", "abcd1234", rtspEvent);
                                         rtspClient.Connect();
                                     }
                                 });
@@ -196,8 +202,8 @@ public class MainActivity extends AppCompatActivity {
             MediaFormat mediaFormat = new MediaFormat();
             mediaFormat.setString(MediaFormat.KEY_MIME, "video/avc");
             mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE,  rtspClient.picWidth*rtspClient.picHeight);
-            mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 20);
-            mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+            mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 25);
+            // mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
             mediaFormat.setByteBuffer("csd-0", ByteBuffer.wrap(rtspClient.sps));
             mediaFormat.setByteBuffer("csd-1", ByteBuffer.wrap(rtspClient.pps));
             mediaFormat.setInteger(MediaFormat.KEY_WIDTH, rtspClient.picWidth);

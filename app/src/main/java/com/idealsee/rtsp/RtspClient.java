@@ -641,8 +641,19 @@ public class RtspClient implements RtpEvent {
                         H264Package p = array.get(i);
                         if(i==0) {
                             byte NALUType = (byte)((h264Package.Header & 0xE0)|(h264Package.FU.Header &0x1F));
+                            Integer type = Integer.valueOf(NALUType & 0x1F);
+                            if(type == 5) {
+                                System.arraycopy(StartCode, 0, NALU, index, 4);
+                                index += 4;
+                                System.arraycopy(sps, 0, NALU, index, sps.length);
+                                index += sps.length;
+                                System.arraycopy(StartCode, 0, NALU, index, 4);
+                                index += 4;
+                                System.arraycopy(pps, 0, NALU, index, pps.length);
+                                index += pps.length;
+                            }
                             System.arraycopy(StartCode, 0, NALU, index, 4);
-                            NALU[4] = NALUType;
+                            NALU[index + 4] = NALUType;
                             index += 5;
                             System.out.println("NALU.Type:"+ NALUType);
                         }
