@@ -131,11 +131,11 @@ public class RtspResponse {
                                 if(key.equals("a")) {
                                     Matcher trackMather = regexSDPgetTrack.matcher(value);
                                     if (trackMather.find()) {
-                                        Sdp.videoTrack = trackMather.group(1);
-                                        Sdp.videoTrackFlag = true;
+                                        Sdp.audioTrack = trackMather.group(1);
+                                        Sdp.audioTrackFlag = true;
                                         Matcher trackValueMather = regexSDPgetTrackValue.matcher(value);
                                         if (trackValueMather.find()) {
-                                            Sdp.videoTrackValue =Integer.valueOf(trackValueMather.group(1));
+                                            Sdp.audioTrackValue =Integer.valueOf(trackValueMather.group(1));
                                         }
                                     }
                                 }

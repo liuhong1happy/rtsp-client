@@ -77,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 Integer naluType = nalu[4] & 0x1F;
                                 if (naluType == 5) startKeyFrame = true;
-                                if (startKeyFrame || naluType == 7 || naluType == 8) {
+                                if (startKeyFrame || naluType == 7 || naluType == 8 || naluType == 1 || naluType == 6) {
                                     inputBufferIndex = mMeidaCodec.dequeueInputBuffer(10000);
                                     if (inputBufferIndex >= 0) {
                                         ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
@@ -187,7 +187,8 @@ public class MainActivity extends AppCompatActivity {
             mThreadPool.execute(new Runnable() {
                                     @Override
                                     public void run() {
-                                        rtspClient = new RtspClient("rtsp://192.168.0.100:554/h264/ch1/sub/av_stream", "admin", "abcd1234", rtspEvent);
+//                                        rtspClient = new RtspClient("rtsp://192.168.0.109:554/h264/ch1/sub/av_stream", "admin", "abcd1234", rtspEvent);
+                                         rtspClient = new RtspClient("rtsp://172.16.10.237/h264/test", "", "", rtspEvent);
                                         rtspClient.Connect();
                                     }
                                 });
