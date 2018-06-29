@@ -187,8 +187,8 @@ public class MainActivity extends AppCompatActivity {
             mThreadPool.execute(new Runnable() {
                                     @Override
                                     public void run() {
-//                                        rtspClient = new RtspClient("rtsp://192.168.0.109:554/h264/ch1/sub/av_stream", "admin", "abcd1234", rtspEvent);
-                                         rtspClient = new RtspClient("rtsp://172.16.10.237/h264/test", "", "", rtspEvent);
+                                        rtspClient = new RtspClient("rtsp://192.168.0.64:554/h264/ch1/sub/av_stream", "admin", "abcd1234", rtspEvent);
+//                                         rtspClient = new RtspClient("rtsp://172.16.10.237/h264/test", "", "", rtspEvent);
                                         rtspClient.Connect();
                                     }
                                 });

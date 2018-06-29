@@ -602,12 +602,12 @@ public class RtspClient implements RtpEvent {
 		/**
          * 缓存H264包
          */
-        if(!h264PackageCache.containsKey(rtpPackage.Ssrc)) {
-            h264PackageCache.put(rtpPackage.Ssrc, new CopyOnWriteArrayList<H264Package>());
+        if(!h264PackageCache.containsKey(rtpPackage.TimeStamp)) {
+            h264PackageCache.put(rtpPackage.TimeStamp, new CopyOnWriteArrayList<H264Package>());
         }
         try {
+            CopyOnWriteArrayList<H264Package> array = h264PackageCache.get(rtpPackage.TimeStamp);
             if (h264Package.isFU) {
-                CopyOnWriteArrayList<H264Package> array = new CopyOnWriteArrayList<H264Package>(h264PackageCache.get(rtpPackage.Ssrc));
                 if (h264Package.FU.Start == 1) {
                     array.clear();
                     array.add(h264Package);

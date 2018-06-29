@@ -39,7 +39,6 @@ public class H264Package {
             FU = new FragmentationUnit(payload[1]);
             FU.printHeader();
         }
-
         //get the payload bitstream:
         PayloadSize = packet_size - HEADER_SIZE;
         Payload = new byte[PayloadSize];
